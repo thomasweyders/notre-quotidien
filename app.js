@@ -84,7 +84,11 @@ function itemHTML(x){const done=x.kind==='task'&&x.data.status==='completed';ret
 function renderTasks(){let list=state.tasks;if(state.taskFilter==='active')list=list.filter(activeTask);if(state.taskFilter==='completed')list=list.filter(t=>t.status==='completed'&&!t.deleted_at);if(state.taskFilter==='trash')list=list.filter(t=>t.deleted_at);if(state.taskFilter==='all')list=list.filter(t=>!t.deleted_at);
  $('#tasks-list').innerHTML=list.length?list.map(t=>`<article class="item"><span class="item-icon">${taskIcon()}</span><div><div class="item-title ${statusClass(t.due_at,t.status==='completed',!t.due_at)}">${esc(t.title)}</div><div class="item-meta">${dateText(t.due_at)} · ${t.status==='completed'?'Terminée':'À faire'}</div></div><div class="item-actions">${activeTask(t)?`<button class="mini" data-complete="${t.id}" type="button">Terminer</button><button class="mini" data-edit-task="${t.id}" type="button">Modifier</button><button class="mini" data-trash-task="${t.id}" type="button">Supprimer</button>`:''}${t.deleted_at?`<button class="mini" data-restore-task="${t.id}" type="button">Restaurer</button>`:''}</div></article>`).join(''):empty('Aucune tâche dans cette vue.')}
 function renderAgenda(){const items=unified();$('#agenda-list').innerHTML=items.length?items.map(itemHTML).join(''):empty('Aucun élément dans l’agenda.')}
-function renderAssets(){let a=state.assets;if(state.assetFilter!=='all')a=a.filter(x=>x.asset_type===state.assetFilter);$('#assets-list').innerHTML=a.length?a.map(x=>{const plans=state.plans.filter(p=>p.asset_id===x.id&&!p.deleted_at);return `<article class="item"><span class="item-icon">${x.asset_type==='vehicle'?'🚗':'🏠'}</span><div><div class="item-title">${esc(x.name)}</div><div class="item-meta">${esc(x.category||'Sans catégorie')} · ${plans.length} entretien(s)</div></div><div class="item-actions"><button class="mini" data-add-plan="${x.id}" type="button">＋ Entretien</button></div></article>${plans.map(p=>`<article class="item"><span class="item-icon">🔧</span><div><div class="item-title ${statusClass(p.next_due_at,false,!p.next_due_at)}">${esc(p.title)}</div><div class="item-meta">${dateText(p.next_due_at)}${p.next_due_mileage!=null?' · '+p.next_due_mileage+' km':''}</div></div><div class="item-actions"><button class="mini" data-edit-plan="${p.id}" type="button">Modifier</button>
+function renderAssets(){let a=state.assets;if(state.assetFilter!=='all')a=a.filter(x=>x.asset_type===state.assetFilter);$('#assets-list').innerHTML=a.length?a.map(x=>{const plans=state.plans.filter(p=>p.asset_id===x.id&&!p.deleted_at);return `<article class="item"><span class="item-icon">${x.asset_type==='vehicle'?'🚗':'🏠'}</span><div><div class="item-title">${esc(x.name)}</div><div class="item-meta">${esc(x.category||'Sans catégorie')} ·${plans.length} entretien(s) planifié(s) · ${
+  state.records.filter(
+    record=>record.asset_id===x.id
+  ).length
+} intervention(s) réalisée(s) </div></div><div class="item-actions"><button class="mini" data-add-plan="${x.id}" type="button">＋ Entretien</button></div></article>${plans.map(p=>`<article class="item"><span class="item-icon">🔧</span><div><div class="item-title ${statusClass(p.next_due_at,false,!p.next_due_at)}">${esc(p.title)}</div><div class="item-meta">${dateText(p.next_due_at)} ${p.next_due_mileage!=null   ? ' · '+p.next_due_mileage+' km'   : '' } ${p.interval_months   ? ' · tous les '+p.interval_months+' mois'   : '' } ${p.interval_mileage   ? ' · tous les '+p.interval_mileage+' km'   : '' }</div></div><div class="item-actions"><button class="mini" data-edit-plan="${p.id}" type="button">Modifier</button>
 <button class="mini" data-done-plan="${p.id}" type="button">Effectué</button></div></article>`).join('')}`}).join(''):empty('Aucun équipement enregistré.')}
 
 function showScreen(name){$$('.screen').forEach(x=>x.classList.add('hidden'));$(`#screen-${name}`).classList.remove('hidden');$$('.nav-btn').forEach(x=>x.classList.toggle('active',x.dataset.screen===name));window.scrollTo({top:0,behavior:'smooth'})}
@@ -180,113 +184,90 @@ async function completeTask(id){const {error}=await supabase.from('tasks').updat
 async function trashTask(id){if(!confirm('Supprimer cette tâche et arrêter ses futurs rappels ?'))return;const {error}=await supabase.from('tasks').update({deleted_at:new Date().toISOString(),deleted_by:state.user.id,next_reminder_at:null,updated_by:state.user.id}).eq('id',id);if(error)toast(error.message);else await loadData()}
 async function restoreTask(id){const {error}=await supabase.from('tasks').update({deleted_at:null,deleted_by:null,updated_by:state.user.id}).eq('id',id);if(error)toast(error.message);else await loadData()}
 async function completePlan(id){
-  const p=state.plans.find(x=>x.id===id);
+  const plan=state.plans.find(item=>item.id===id);
 
-  if(!p){
+  if(!plan){
     toast('Entretien introuvable');
     return;
   }
 
-  const performedAt=new Date();
-
   let mileage=null;
 
   if(
-    p.schedule_type==='mileage'
-    || p.schedule_type==='date_or_mileage'
-    || p.next_due_mileage!==null
+    plan.schedule_type==='mileage'
+    || plan.schedule_type==='date_or_mileage'
+    || plan.next_due_mileage!==null
   ){
     const entered=prompt(
       'Kilométrage lors de l’entretien '
       +'(laisser vide si non applicable)'
     );
 
-    if(entered!==null && entered.trim()!==''){
+    if(entered===null){
+      return;
+    }
+
+    if(entered.trim()!==''){
       mileage=Number(entered);
 
-      if(!Number.isFinite(mileage)||mileage<0){
+      if(!Number.isInteger(mileage)||mileage<0){
         toast('Le kilométrage saisi est incorrect');
         return;
       }
     }
-  }
-
-  const recordResult=await supabase
-    .from('maintenance_records')
-    .insert({
-      household_id:state.household.id,
-      asset_id:p.asset_id,
-      maintenance_plan_id:p.id,
-      performed_at:performedAt.toISOString(),
-      mileage:mileage,
-      performed_by:state.user.id,
-      created_by:state.user.id
-    });
-
-  if(recordResult.error){
-    toast(recordResult.error.message);
-    return;
-  }
-
-  let nextDueAt=null;
-
-  if(p.interval_months){
-    nextDueAt=new Date(performedAt);
-
-    const originalDay=nextDueAt.getDate();
-
-    nextDueAt.setDate(1);
-    nextDueAt.setMonth(
-      nextDueAt.getMonth()+Number(p.interval_months)
+  }else{
+    const confirmed=confirm(
+      `Confirmer que l’entretien « ${plan.title} » `
+      +'a été effectué aujourd’hui ?'
     );
 
-    const lastDayOfTargetMonth=new Date(
-      nextDueAt.getFullYear(),
-      nextDueAt.getMonth()+1,
-      0
-    ).getDate();
-
-    nextDueAt.setDate(
-      Math.min(originalDay,lastDayOfTargetMonth)
-    );
+    if(!confirmed){
+      return;
+    }
   }
 
-  let nextDueMileage=p.next_due_mileage;
+  setSync('Enregistrement…');
 
-  if(mileage!==null && p.interval_mileage){
-    nextDueMileage=
-      mileage+Number(p.interval_mileage);
-  }
-
-  const updateResult=await supabase
-    .from('maintenance_plans')
-    .update({
-      next_due_at:nextDueAt
-        ? nextDueAt.toISOString()
-        : null,
-      next_due_mileage:nextDueMileage,
-      next_reminder_at:null,
-      updated_by:state.user.id
-    })
-    .eq('id',id);
-
-  if(updateResult.error){
-    toast(
-      'Intervention enregistrée, mais la prochaine échéance '
-      +'n’a pas été recalculée : '
-      +updateResult.error.message
-    );
-    await loadData();
-    return;
-  }
-
-  toast(
-    nextDueAt
-      ? 'Entretien enregistré et prochaine date recalculée'
-      : 'Entretien enregistré. Définis une nouvelle échéance.'
+  const {data,error}=await supabase.rpc(
+    'complete_maintenance_plan',
+    {
+      requested_plan_id:id,
+      performed_mileage:mileage
+    }
   );
 
+  if(error){
+    console.error(
+      'Erreur complete_maintenance_plan',
+      error
+    );
+
+    toast(
+      'Impossible d’enregistrer l’entretien : '
+      +error.message
+    );
+
+    setSync('Erreur');
+    return;
+  }
+
+  const result=data?.[0];
+
   await loadData();
+
+  setSync('Synchronisé');
+
+  if(result?.new_due_at){
+    toast(
+      'Entretien enregistré. Prochaine échéance : '
+      +dateText(result.new_due_at)
+    );
+  }else{
+    toast(
+      'Entretien enregistré. '
+      +'Aucune périodicité définie.'
+    );
+  }
 }
 
 function bindUI(){
