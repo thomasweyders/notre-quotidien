@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#176b5b">
+  <meta name="description" content="Tableau de bord familial pour les tâches, l’agenda et les entretiens.">
+  <title>Notre quotidien</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <main id="auth-view" class="auth-shell">
+    <section class="auth-card">
+      <div class="brand brand-large"><span class="brand-mark">NQ</span><div><h1>Notre quotidien</h1><p>Votre organisation familiale, simplement.</p></div></div>
+      <div class="segmented" role="tablist">
+        <button id="tab-login" class="active" type="button">Connexion</button>
+        <button id="tab-signup" type="button">Créer un compte</button>
+      </div>
+      <form id="auth-form">
+        <label>Adresse e-mail<input id="auth-email" type="email" autocomplete="email" required></label>
+        <label>Mot de passe<input id="auth-password" type="password" minlength="12" autocomplete="current-password" required></label>
+        <p id="password-help" class="help hidden">12 caractères minimum, avec majuscule, minuscule, chiffre et symbole.</p>
+        <button id="auth-submit" class="btn primary full" type="submit">Se connecter</button>
+      </form>
+      <button id="reset-password" class="link-btn" type="button">Mot de passe oublié ?</button>
+      <p id="auth-message" class="message" aria-live="polite"></p>
+    </section>
+  </main>
+
+  <div id="app-view" class="app hidden">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">NQ</span><div><strong>Notre quotidien</strong><small id="sync-state">Synchronisé</small></div></div>
+      <button id="settings-btn" class="icon-btn" type="button" aria-label="Paramètres">⚙️</button>
+    </header>
+
+    <main class="content">
+      <section id="onboarding" class="panel hidden">
+        <h2>Bienvenue</h2>
+        <p>Crée ton foyer pour commencer à partager les tâches, événements et entretiens.</p>
+        <form id="profile-household-form">
+          <label>Ton prénom ou nom d’affichage<input id="display-name" maxlength="80" required></label>
+          <label>Nom du foyer<input id="household-name" maxlength="80" value="Notre foyer" required></label>
+          <button class="btn primary" type="submit">Créer mon foyer</button>
+        </form>
+      </section>
+
+      <section id="screen-home" class="screen">
+        <div class="welcome"><div><p id="today-label"></p><h1 id="hello-label">Bonjour</h1></div><button id="quick-add" class="btn primary" type="button">＋ Ajouter</button></div>
+        <div class="summary-grid">
+          <button class="summary-card overdue" data-home-filter="overdue" type="button"><strong id="count-overdue">0</strong><span>En retard</span></button>
+          <button class="summary-card today" data-home-filter="today" type="button"><strong id="count-today">0</strong><span>Aujourd’hui</span></button>
+          <button class="summary-card week" data-home-filter="week" type="button"><strong id="count-week">0</strong><span>Cette semaine</span></button>
+        </div>
+        <section class="dashboard-section"><div class="section-title"><h2>À traiter en priorité</h2><button class="link-btn" data-go="tasks" type="button">Voir tout</button></div><div id="priority-list" class="item-list"></div></section>
+        <section class="dashboard-section"><div class="section-title"><h2>Aujourd’hui</h2><button class="link-btn" data-filter="today" type="button">Voir tout</button></div><div id="today-list" class="item-list"></div></section>
+        <section class="dashboard-section"><div class="section-title"><h2>Prochains jours</h2><button class="link-btn" data-filter="week" type="button">Voir tout</button></div><div id="week-list" class="item-list"></div></section>
+      </section>
+
+      <section id="screen-tasks" class="screen hidden">
+        <div class="page-head"><div><p>Tâches familiales</p><h1>À faire</h1></div><button id="add-task" class="btn primary" type="button">＋ Tâche</button></div>
+        <div class="filters"><button class="chip active" data-task-filter="active" type="button">À faire</button><button class="chip" data-task-filter="all" type="button">Toutes</button><button class="chip" data-task-filter="completed" type="button">Terminées</button><button class="chip" data-task-filter="trash" type="button">Corbeille</button></div>
+        <div id="tasks-list" class="item-list"></div>
+      </section>
+
+      <section id="screen-agenda" class="screen hidden">
+        <div class="page-head"><div><p>Vue chronologique</p><h1>Agenda</h1></div><button id="add-event" class="btn primary" type="button">＋ Événement</button></div>
+        <div id="agenda-list" class="item-list"></div>
+      </section>
+
+      <section id="screen-maintenance" class="screen hidden">
+        <div class="page-head"><div><p>Maison et véhicules</p><h1>Entretien</h1></div><button id="add-asset" class="btn primary" type="button">＋ Équipement</button></div>
+        <div class="filters"><button class="chip active" data-asset-filter="all" type="button">Tout</button><button class="chip" data-asset-filter="home" type="button">🏠 Maison</button><button class="chip" data-asset-filter="vehicle" type="button">🚗 Véhicules</button></div>
+        <div id="assets-list" class="item-list"></div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Navigation principale">
+      <button class="nav-btn active" data-screen="home" type="button"><span>🏠</span><b>Accueil</b></button>
+      <button class="nav-btn" data-screen="tasks" type="button"><span>✅</span><b>Tâches</b></button>
+      <button class="nav-btn" data-screen="agenda" type="button"><span>📅</span><b>Agenda</b></button>
+      <button class="nav-btn" data-screen="maintenance" type="button"><span>🔧</span><b>Entretien</b></button>
+    </nav>
+  </div>
+
+  <dialog id="editor-dialog">
+    <form method="dialog" class="dialog-card" id="editor-form">
+      <div class="dialog-head"><h2 id="editor-title">Ajouter</h2><button class="icon-btn" value="cancel" aria-label="Fermer">✕</button></div>
+      <div id="editor-fields"></div>
+      <div class="dialog-actions"><button class="btn secondary" value="cancel">Annuler</button><button id="editor-save" class="btn primary" value="default">Enregistrer</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="settings-dialog">
+    <div class="dialog-card">
+      <div class="dialog-head"><h2>Paramètres</h2><button class="icon-btn" data-close-settings type="button">✕</button></div>
+      <p id="account-email"></p>
+      <p><strong>Foyer :</strong> <span id="settings-household">Non configuré</span></p>
+      <button id="signout-btn" class="btn danger full" type="button">Se déconnecter</button>
+    </div>
+  </dialog>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
