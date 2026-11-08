@@ -113,7 +113,13 @@ function bindUI(){
  $('#reset-password').onclick=async()=>{const email=$('#auth-email').value.trim();if(!email)return toast('Saisis d’abord ton adresse e-mail');const {error}=await supabase.auth.resetPasswordForEmail(email,{redirectTo:location.href.split('#')[0]});toast(error?error.message:'E-mail de réinitialisation envoyé')};
  $('#profile-household-form').addEventListener('submit',async e=>{e.preventDefault();const name=$('#display-name').value.trim(),hname=$('#household-name').value.trim(),u=state.user.id;const p=await supabase.from('profiles').upsert({id:u,display_name:name,email:state.user.email});if(p.error)return toast(p.error.message);const {data:h,error}=await supabase.from('households').insert({name:hname,owner_user_id:u}).select().single();if(error)return toast(error.message);const m=await supabase.from('household_members').insert({household_id:h.id,user_id:u,role:'owner'});if(m.error)return toast(m.error.message);toast('Foyer créé');await loadContext()});
  $$('.nav-btn').forEach(b=>b.onclick=()=>showScreen(b.dataset.screen));$('#quick-add').onclick=()=>openEditor('task');$('#add-task').onclick=()=>openEditor('task');$('#add-event').onclick=()=>openEditor('event');$('#add-asset').onclick=()=>openEditor('asset');
- $('#editor-form').addEventListener('submit',async e=>{if(e.submitter?.value==='cancel')return;e.preventDefault();try{await saveEditor(new FormData(e.currentTarget));$('#editor-dialog').close()}catch(err){toast(err.message)}});
+ $('#editor-form').addEventListener('submit',async e=>{e.preventDefault();try{await saveEditor(new FormData(e.currentTarget));$('#editor-dialog').close()}catch(err){toast(err.message)}});
+
+$$('[data-close-editor]').forEach(button=>{
+  button.addEventListener('click',()=>{
+    $('#editor-dialog').close();
+  });
+});
  $('#settings-btn').onclick=()=>$('#settings-dialog').showModal();$('[data-close-settings]').onclick=()=>$('#settings-dialog').close();$('#signout-btn').onclick=async()=>{await supabase.auth.signOut();location.reload()};
  document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.complete)completeTask(b.dataset.complete);if(b.dataset.editTask)openEditor('task',b.dataset.editTask);if(b.dataset.trashTask)trashTask(b.dataset.trashTask);if(b.dataset.restoreTask)restoreTask(b.dataset.restoreTask);if(b.dataset.addPlan)openEditor('plan',b.dataset.addPlan);if(b.dataset.donePlan)completePlan(b.dataset.donePlan);if(b.dataset.go)showScreen(b.dataset.go);if(b.dataset.taskFilter){state.taskFilter=b.dataset.taskFilter;$$('[data-task-filter]').forEach(x=>x.classList.toggle('active',x===b));renderTasks()}if(b.dataset.assetFilter){state.assetFilter=b.dataset.assetFilter;$$('[data-asset-filter]').forEach(x=>x.classList.toggle('active',x===b));renderAssets()}if(b.dataset.homeFilter){showScreen('agenda')}});
  window.addEventListener('online',()=>setSync('Synchronisé'));window.addEventListener('offline',()=>setSync('Hors connexion'));
