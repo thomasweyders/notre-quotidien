@@ -80,16 +80,113 @@ function renderDashboard(){const items=unified(),now=new Date(),sd=startOfToday(
  $('#today-list').innerHTML=(today.slice(0,4).map(itemHTML).join('')||empty('Rien de prévu aujourd’hui.'));
  $('#week-list').innerHTML=(week.slice(0,5).map(itemHTML).join('')||empty('Aucune autre action cette semaine.'));
 }
-function itemHTML(x){const done=x.kind==='task'&&x.data.status==='completed';return `<article class="item"><span class="item-icon">${x.icon}</span><div><div class="item-title ${statusClass(x.date,done,!x.date)}">${esc(x.title)}</div><div class="item-meta">${dateText(x.date)}</div></div>${x.kind==='task'?`<div class="item-actions"><button class="mini" data-complete="${x.data.id}" type="button">Terminer</button><button class="mini" data-edit-task="${x.data.id}" type="button">Modifier</button></div>`:''}</article>`}
+function itemHTML(x,allowManage=false){
+  const done=
+    x.kind==='task'
+    && x.data.status==='completed';
+
+  let actions='';
+
+  if(x.kind==='task'){
+    actions=`
+      <div class="item-actions">
+        <button
+          class="mini"
+          data-complete="${x.data.id}"
+          type="button"
+        >
+          Terminer
+        </button>
+
+        <button
+          class="mini"
+          data-edit-task="${x.data.id}"
+          type="button"
+        >
+          Modifier
+        </button>
+      </div>
+    `;
+  }
+
+  if(x.kind==='event' && allowManage){
+    actions=`
+      <div class="item-actions">
+        <button
+          class="mini"
+          data-delete-event="${x.data.id}"
+          type="button"
+        >
+          Supprimer
+        </button>
+      </div>
+    `;
+  }
+
+  return `
+    <article class="item">
+      <span class="item-icon">${x.icon}</span>
+
+      <div>
+        <div class="item-title ${
+          statusClass(
+            x.date,
+            done,
+            !x.date
+          )
+        }">
+          ${esc(x.title)}
+        </div>
+
+        <div class="item-meta">
+          ${dateText(x.date)}
+        </div>
+      </div>
+
+      ${actions}
+    </article>
+  `;
+}
 function renderTasks(){let list=state.tasks;if(state.taskFilter==='active')list=list.filter(activeTask);if(state.taskFilter==='completed')list=list.filter(t=>t.status==='completed'&&!t.deleted_at);if(state.taskFilter==='trash')list=list.filter(t=>t.deleted_at);if(state.taskFilter==='all')list=list.filter(t=>!t.deleted_at);
  $('#tasks-list').innerHTML=list.length?list.map(t=>`<article class="item"><span class="item-icon">${taskIcon()}</span><div><div class="item-title ${statusClass(t.due_at,t.status==='completed',!t.due_at)}">${esc(t.title)}</div><div class="item-meta">${dateText(t.due_at)} · ${t.status==='completed'?'Terminée':'À faire'}</div></div><div class="item-actions">${activeTask(t)?`<button class="mini" data-complete="${t.id}" type="button">Terminer</button><button class="mini" data-edit-task="${t.id}" type="button">Modifier</button><button class="mini" data-trash-task="${t.id}" type="button">Supprimer</button>`:''}${t.deleted_at?`<button class="mini" data-restore-task="${t.id}" type="button">Restaurer</button>`:''}</div></article>`).join(''):empty('Aucune tâche dans cette vue.')}
-function renderAgenda(){const items=unified();$('#agenda-list').innerHTML=items.length?items.map(itemHTML).join(''):empty('Aucun élément dans l’agenda.')}
+function renderAgenda(){
+  const items=unified();
+
+  $('#agenda-list').innerHTML=
+    items.length
+      ? items
+          .map(item=>itemHTML(item,true))
+          .join('')
+      : empty('Aucun élément dans l’agenda.');
+}
 function renderAssets(){let a=state.assets;if(state.assetFilter!=='all')a=a.filter(x=>x.asset_type===state.assetFilter);$('#assets-list').innerHTML=a.length?a.map(x=>{const plans=state.plans.filter(p=>p.asset_id===x.id&&!p.deleted_at);return `<article class="item"><span class="item-icon">${x.asset_type==='vehicle'?'🚗':'🏠'}</span><div><div class="item-title">${esc(x.name)}</div><div class="item-meta">${esc(x.category||'Sans catégorie')} ·${plans.length} entretien(s) planifié(s) · ${
   state.records.filter(
     record=>record.asset_id===x.id
   ).length
-} intervention(s) réalisée(s) </div></div><div class="item-actions"><button class="mini" data-add-plan="${x.id}" type="button">＋ Entretien</button></div></article>${plans.map(p=>`<article class="item"><span class="item-icon">🔧</span><div><div class="item-title ${statusClass(p.next_due_at,false,!p.next_due_at)}">${esc(p.title)}</div><div class="item-meta">${dateText(p.next_due_at)} ${p.next_due_mileage!=null   ? ' · '+p.next_due_mileage+' km'   : '' } ${p.interval_months   ? ' · tous les '+p.interval_months+' mois'   : '' } ${p.interval_mileage   ? ' · tous les '+p.interval_mileage+' km'   : '' }</div></div><div class="item-actions"><button class="mini" data-edit-plan="${p.id}" type="button">Modifier</button>
-<button class="mini" data-done-plan="${p.id}" type="button">Effectué</button></div></article>`).join('')}`}).join(''):empty('Aucun équipement enregistré.')}
+} intervention(s) réalisée(s) </div></div><div class="item-actions"><button class="mini" data-add-plan="${x.id}" type="button">＋ Entretien</button></div></article>${plans.map(p=>`<article class="item"><span class="item-icon">🔧</span><div><div class="item-title ${statusClass(p.next_due_at,false,!p.next_due_at)}">${esc(p.title)}</div><div class="item-meta">${dateText(p.next_due_at)} ${p.next_due_mileage!=null   ? ' · '+p.next_due_mileage+' km'   : '' } ${p.interval_months   ? ' · tous les '+p.interval_months+' mois'   : '' } ${p.interval_mileage   ? ' · tous les '+p.interval_mileage+' km'   : '' }</div></div><div class="item-actions"><button
+  class="mini"
+  data-edit-plan="${p.id}"
+  type="button"
+>
+  Modifier
+</button>
+
+<button
+  class="mini"
+  data-done-plan="${p.id}"
+  type="button"
+>
+  Effectué
+</button>
+
+<button
+  class="mini"
+  data-delete-plan="${p.id}"
+  type="button"
+>
+  Supprimer
+</button>
+</div></article>`).join('')}`}).join(''):empty('Aucun équipement enregistré.')}
 
 function showScreen(name){$$('.screen').forEach(x=>x.classList.add('hidden'));$(`#screen-${name}`).classList.remove('hidden');$$('.nav-btn').forEach(x=>x.classList.toggle('active',x.dataset.screen===name));window.scrollTo({top:0,behavior:'smooth'})}
 function field(label,name,type='text',value='',extra=''){return `<label>${label}<input name="${name}" type="${type}" value="${esc(value)}" ${extra}></label>`}
@@ -180,9 +277,149 @@ if(editorMode==='plan'||editorMode==='editPlan'){
 }
  if(res?.error)throw res.error;toast('Enregistré');await loadData();
 }
+async function deleteEvent(id){
+  const event=state.events.find(
+    item=>item.id===id
+  );
+
+  if(!event){
+    toast('Événement introuvable');
+    return;
+  }
+
+  const confirmed=confirm(
+    `Supprimer l’événement « ${event.title} » ?`
+  );
+
+  if(!confirmed){
+    return;
+  }
+
+  setSync('Suppression…');
+
+  const {data,error}=await supabase
+    .from('events')
+    .update({
+      deleted_at:new Date().toISOString(),
+      deleted_by:state.user.id,
+      updated_by:state.user.id
+    })
+    .eq('id',id)
+    .select('id')
+    .maybeSingle();
+
+  if(error){
+    console.error(
+      'Erreur suppression événement',
+      error
+    );
+
+    toast(
+      'Impossible de supprimer l’événement : '
+      +error.message
+    );
+
+    setSync('Erreur');
+    return;
+  }
+
+  if(!data){
+    toast(
+      'Suppression refusée. '
+      +'Seul le créateur ou un administrateur peut supprimer cet événement.'
+    );
+
+    setSync('Synchronisé');
+    return;
+  }
+
+  toast('Événement supprimé');
+
+  await loadData();
+
+  setSync('Synchronisé');
+}
 async function completeTask(id){const {error}=await supabase.from('tasks').update({status:'completed',completed_at:new Date().toISOString(),completed_by:state.user.id,updated_by:state.user.id,next_reminder_at:null}).eq('id',id);if(error)toast(error.message);else{toast('Tâche terminée');await loadData()}}
 async function trashTask(id){if(!confirm('Supprimer cette tâche et arrêter ses futurs rappels ?'))return;const {error}=await supabase.from('tasks').update({deleted_at:new Date().toISOString(),deleted_by:state.user.id,next_reminder_at:null,updated_by:state.user.id}).eq('id',id);if(error)toast(error.message);else await loadData()}
 async function restoreTask(id){const {error}=await supabase.from('tasks').update({deleted_at:null,deleted_by:null,updated_by:state.user.id}).eq('id',id);if(error)toast(error.message);else await loadData()}
+async function deletePlan(id){
+  const plan=state.plans.find(
+    item=>item.id===id
+  );
+
+  if(!plan){
+    toast('Entretien introuvable');
+    return;
+  }
+
+  const interventions=state.records.filter(
+    record=>record.maintenance_plan_id===id
+  ).length;
+
+  let message=
+    `Supprimer l’entretien planifié `
+    +`« ${plan.title} » ?`;
+
+  if(interventions>0){
+    message+=
+      `\n\nLes ${interventions} intervention(s) `
+      +`déjà réalisée(s) seront conservée(s) `
+      +`dans l’historique.`;
+  }
+
+  const confirmed=confirm(message);
+
+  if(!confirmed){
+    return;
+  }
+
+  setSync('Suppression…');
+
+  const {data,error}=await supabase
+    .from('maintenance_plans')
+    .update({
+      deleted_at:new Date().toISOString(),
+      deleted_by:state.user.id,
+      active:false,
+      notifications_enabled:false,
+      next_reminder_at:null,
+      updated_by:state.user.id
+    })
+    .eq('id',id)
+    .select('id')
+    .maybeSingle();
+
+  if(error){
+    console.error(
+      'Erreur suppression entretien',
+      error
+    );
+
+    toast(
+      'Impossible de supprimer l’entretien : '
+      +error.message
+    );
+
+    setSync('Erreur');
+    return;
+  }
+
+  if(!data){
+    toast(
+      'Suppression refusée. '
+      +'Seul le créateur ou un administrateur peut supprimer cet entretien.'
+    );
+
+    setSync('Synchronisé');
+    return;
+  }
+
+  toast('Entretien planifié supprimé');
+
+  await loadData();
+
+  setSync('Synchronisé');
+}
 async function completePlan(id){
   const plan=state.plans.find(item=>item.id===id);
 
@@ -284,7 +521,92 @@ $$('[data-close-editor]').forEach(button=>{
   });
 });
  $('#settings-btn').onclick=()=>$('#settings-dialog').showModal();$('[data-close-settings]').onclick=()=>$('#settings-dialog').close();$('#signout-btn').onclick=async()=>{await supabase.auth.signOut();location.reload()};
- document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.complete)completeTask(b.dataset.complete);if(b.dataset.editTask)openEditor('task',b.dataset.editTask);if(b.dataset.trashTask)trashTask(b.dataset.trashTask);if(b.dataset.restoreTask)restoreTask(b.dataset.restoreTask);if(b.dataset.addPlan)openEditor('plan',b.dataset.addPlan);if(b.dataset.editPlan)openEditor('editPlan',b.dataset.editPlan);if(b.dataset.donePlan)completePlan(b.dataset.donePlan);if(b.dataset.go)showScreen(b.dataset.go);if(b.dataset.taskFilter){state.taskFilter=b.dataset.taskFilter;$$('[data-task-filter]').forEach(x=>x.classList.toggle('active',x===b));renderTasks()}if(b.dataset.assetFilter){state.assetFilter=b.dataset.assetFilter;$$('[data-asset-filter]').forEach(x=>x.classList.toggle('active',x===b));renderAssets()}if(b.dataset.homeFilter){showScreen('agenda')}});
+ document.addEventListener('click',e=>{
+  const b=e.target.closest('button');
+
+  if(!b){
+    return;
+  }
+
+  if(b.dataset.complete){
+    completeTask(b.dataset.complete);
+  }
+
+  if(b.dataset.editTask){
+    openEditor(
+      'task',
+      b.dataset.editTask
+    );
+  }
+
+  if(b.dataset.trashTask){
+    trashTask(b.dataset.trashTask);
+  }
+
+  if(b.dataset.restoreTask){
+    restoreTask(b.dataset.restoreTask);
+  }
+
+  if(b.dataset.deleteEvent){
+    deleteEvent(b.dataset.deleteEvent);
+  }
+
+  if(b.dataset.addPlan){
+    openEditor(
+      'plan',
+      b.dataset.addPlan
+    );
+  }
+
+  if(b.dataset.editPlan){
+    openEditor(
+      'editPlan',
+      b.dataset.editPlan
+    );
+  }
+
+  if(b.dataset.donePlan){
+    completePlan(b.dataset.donePlan);
+  }
+
+  if(b.dataset.deletePlan){
+    deletePlan(b.dataset.deletePlan);
+  }
+
+  if(b.dataset.go){
+    showScreen(b.dataset.go);
+  }
+
+  if(b.dataset.taskFilter){
+    state.taskFilter=b.dataset.taskFilter;
+
+    $$('[data-task-filter]').forEach(item=>{
+      item.classList.toggle(
+        'active',
+        item===b
+      );
+    });
+
+    renderTasks();
+  }
+
+  if(b.dataset.assetFilter){
+    state.assetFilter=b.dataset.assetFilter;
+
+    $$('[data-asset-filter]').forEach(item=>{
+      item.classList.toggle(
+        'active',
+        item===b
+      );
+    });
+
+    renderAssets();
+  }
+
+  if(b.dataset.homeFilter){
+    showScreen('agenda');
+  }
+});
  window.addEventListener('online',()=>setSync('Synchronisé'));window.addEventListener('offline',()=>setSync('Hors connexion'));
 }
 function setAuthMode(v){signupMode=v;$('#tab-login').classList.toggle('active',!v);$('#tab-signup').classList.toggle('active',v);$('#auth-submit').textContent=v?'Créer mon compte':'Se connecter';$('#password-help').classList.toggle('hidden',!v);$('#auth-password').autocomplete=v?'new-password':'current-password'}
