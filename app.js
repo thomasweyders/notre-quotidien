@@ -84,7 +84,8 @@ function itemHTML(x){const done=x.kind==='task'&&x.data.status==='completed';ret
 function renderTasks(){let list=state.tasks;if(state.taskFilter==='active')list=list.filter(activeTask);if(state.taskFilter==='completed')list=list.filter(t=>t.status==='completed'&&!t.deleted_at);if(state.taskFilter==='trash')list=list.filter(t=>t.deleted_at);if(state.taskFilter==='all')list=list.filter(t=>!t.deleted_at);
  $('#tasks-list').innerHTML=list.length?list.map(t=>`<article class="item"><span class="item-icon">${taskIcon()}</span><div><div class="item-title ${statusClass(t.due_at,t.status==='completed',!t.due_at)}">${esc(t.title)}</div><div class="item-meta">${dateText(t.due_at)} · ${t.status==='completed'?'Terminée':'À faire'}</div></div><div class="item-actions">${activeTask(t)?`<button class="mini" data-complete="${t.id}" type="button">Terminer</button><button class="mini" data-edit-task="${t.id}" type="button">Modifier</button><button class="mini" data-trash-task="${t.id}" type="button">Supprimer</button>`:''}${t.deleted_at?`<button class="mini" data-restore-task="${t.id}" type="button">Restaurer</button>`:''}</div></article>`).join(''):empty('Aucune tâche dans cette vue.')}
 function renderAgenda(){const items=unified();$('#agenda-list').innerHTML=items.length?items.map(itemHTML).join(''):empty('Aucun élément dans l’agenda.')}
-function renderAssets(){let a=state.assets;if(state.assetFilter!=='all')a=a.filter(x=>x.asset_type===state.assetFilter);$('#assets-list').innerHTML=a.length?a.map(x=>{const plans=state.plans.filter(p=>p.asset_id===x.id&&!p.deleted_at);return `<article class="item"><span class="item-icon">${x.asset_type==='vehicle'?'🚗':'🏠'}</span><div><div class="item-title">${esc(x.name)}</div><div class="item-meta">${esc(x.category||'Sans catégorie')} · ${plans.length} entretien(s)</div></div><div class="item-actions"><button class="mini" data-add-plan="${x.id}" type="button">＋ Entretien</button></div></article>${plans.map(p=>`<article class="item"><span class="item-icon">🔧</span><div><div class="item-title ${statusClass(p.next_due_at,false,!p.next_due_at)}">${esc(p.title)}</div><div class="item-meta">${dateText(p.next_due_at)}${p.next_due_mileage!=null?' · '+p.next_due_mileage+' km':''}</div></div><div class="item-actions"><button class="mini" data-done-plan="${p.id}" type="button">Effectué</button></div></article>`).join('')}`}).join(''):empty('Aucun équipement enregistré.')}
+function renderAssets(){let a=state.assets;if(state.assetFilter!=='all')a=a.filter(x=>x.asset_type===state.assetFilter);$('#assets-list').innerHTML=a.length?a.map(x=>{const plans=state.plans.filter(p=>p.asset_id===x.id&&!p.deleted_at);return `<article class="item"><span class="item-icon">${x.asset_type==='vehicle'?'🚗':'🏠'}</span><div><div class="item-title">${esc(x.name)}</div><div class="item-meta">${esc(x.category||'Sans catégorie')} · ${plans.length} entretien(s)</div></div><div class="item-actions"><button class="mini" data-add-plan="${x.id}" type="button">＋ Entretien</button></div></article>${plans.map(p=>`<article class="item"><span class="item-icon">🔧</span><div><div class="item-title ${statusClass(p.next_due_at,false,!p.next_due_at)}">${esc(p.title)}</div><div class="item-meta">${dateText(p.next_due_at)}${p.next_due_mileage!=null?' · '+p.next_due_mileage+' km':''}</div></div><div class="item-actions"><button class="mini" data-edit-plan="${p.id}" type="button">Modifier</button>
+<button class="mini" data-done-plan="${p.id}" type="button">Effectué</button></div></article>`).join('')}`}).join(''):empty('Aucun équipement enregistré.')}
 
 function showScreen(name){$$('.screen').forEach(x=>x.classList.add('hidden'));$(`#screen-${name}`).classList.remove('hidden');$$('.nav-btn').forEach(x=>x.classList.toggle('active',x.dataset.screen===name));window.scrollTo({top:0,behavior:'smooth'})}
 function field(label,name,type='text',value='',extra=''){return `<label>${label}<input name="${name}" type="${type}" value="${esc(value)}" ${extra}></label>`}
@@ -92,20 +93,201 @@ function openEditor(mode,id=null){editorMode=mode;editingId=id;let html='',title
  if(mode==='task'){const t=state.tasks.find(x=>x.id===id);title=t?'Modifier la tâche':'Nouvelle tâche';html=field('Nom de la tâche','title','text',t?.title||'','required maxlength="200"')+`<label>Description<textarea name="description">${esc(t?.description||'')}</textarea></label>`+field('Échéance','due_at','datetime-local',localInput(t?.due_at))+`<label>Responsable<select name="assignee"><option value="unassigned">Non attribué</option><option value="everyone">Les deux</option>${state.members.map(m=>`<option value="${m.user_id}" ${t?.assigned_user_id===m.user_id?'selected':''}>${esc(m.profiles?.display_name||'Membre')}</option>`).join('')}</select></label><label class="check-row"><input type="checkbox" name="notifications_enabled" ${t?.notifications_enabled?'checked':''}> Activer les notifications</label><p class="help">La réception en arrière-plan sera activée dans la phase Notifications.</p>`}
  if(mode==='event'){title='Nouvel événement';html=field('Titre','title','text','','required maxlength="200"')+field('Début','starts_at','datetime-local','','required')+field('Fin','ends_at','datetime-local')+field('Lieu','location')+`<label>Description<textarea name="description"></textarea></label>`}
  if(mode==='asset'){title='Nouvel équipement';html=`<label>Type<select name="asset_type"><option value="home">🏠 Maison</option><option value="vehicle">🚗 Véhicule</option></select></label>`+field('Nom','name','text','','required maxlength="200"')+field('Catégorie','category')+field('Marque','make')+field('Modèle','model')+field('Kilométrage actuel','current_mileage','number','','min="0"')+`<label>Notes<textarea name="notes"></textarea></label>`}
- if(mode==='plan'){title='Nouvel entretien';html=`<input type="hidden" name="asset_id" value="${id}">`+field('Opération','title','text','','required maxlength="200"')+field('Prochaine date','next_due_at','datetime-local')+field('Prochain kilométrage','next_due_mileage','number','','min="0"')+field('Intervalle en mois','interval_months','number','','min="1"')}
+ if(mode==='plan'||mode==='editPlan'){
+  const p=mode==='editPlan'
+    ? state.plans.find(x=>x.id===id)
+    : null;
+
+  const assetId=p ? p.asset_id : id;
+
+  title=p
+    ? 'Modifier l’entretien'
+    : 'Nouvel entretien';
+
+  html=
+    `<input type="hidden" name="asset_id" value="${assetId}">`
+    +field(
+      'Opération',
+      'title',
+      'text',
+      p?.title||'',
+      'required maxlength="200"'
+    )
+    +field(
+      'Prochaine date',
+      'next_due_at',
+      'datetime-local',
+      localInput(p?.next_due_at)
+    )
+    +field(
+      'Prochain kilométrage',
+      'next_due_mileage',
+      'number',
+      p?.next_due_mileage??'',
+      'min="0"'
+    )
+    +field(
+      'Intervalle en mois',
+      'interval_months',
+      'number',
+      p?.interval_months??'',
+      'min="1"'
+    );
+}
  $('#editor-title').textContent=title;$('#editor-fields').innerHTML=html;$('#editor-dialog').showModal();
 }
 async function saveEditor(fd){if(!state.household)return;const h=state.household.id,u=state.user.id;let res;
  if(editorMode==='task'){const ass=fd.get('assignee');const row={household_id:h,title:fd.get('title').trim(),description:fd.get('description')||null,due_at:fd.get('due_at')?new Date(fd.get('due_at')).toISOString():null,assignee_type:ass==='unassigned'?'unassigned':ass==='everyone'?'everyone':'member',assigned_user_id:!['unassigned','everyone'].includes(ass)?ass:null,notifications_enabled:fd.get('notifications_enabled')==='on',updated_by:u};if(editingId)res=await supabase.from('tasks').update(row).eq('id',editingId);else res=await supabase.from('tasks').insert({...row,created_by:u})}
  if(editorMode==='event')res=await supabase.from('events').insert({household_id:h,title:fd.get('title').trim(),description:fd.get('description')||null,location:fd.get('location')||null,starts_at:new Date(fd.get('starts_at')).toISOString(),ends_at:fd.get('ends_at')?new Date(fd.get('ends_at')).toISOString():null,created_by:u});
  if(editorMode==='asset')res=await supabase.from('assets').insert({household_id:h,asset_type:fd.get('asset_type'),name:fd.get('name').trim(),category:fd.get('category')||null,make:fd.get('make')||null,model:fd.get('model')||null,current_mileage:fd.get('current_mileage')?Number(fd.get('current_mileage')):null,notes:fd.get('notes')||null,created_by:u});
- if(editorMode==='plan')res=await supabase.from('maintenance_plans').insert({household_id:h,asset_id:fd.get('asset_id'),title:fd.get('title').trim(),schedule_type:fd.get('next_due_mileage')?'date_or_mileage':'date',next_due_at:fd.get('next_due_at')?new Date(fd.get('next_due_at')).toISOString():null,next_due_mileage:fd.get('next_due_mileage')?Number(fd.get('next_due_mileage')):null,interval_months:fd.get('interval_months')?Number(fd.get('interval_months')):null,created_by:u});
+if(editorMode==='plan'||editorMode==='editPlan'){
+  const row={
+    household_id:h,
+    asset_id:fd.get('asset_id'),
+    title:fd.get('title').trim(),
+    schedule_type:fd.get('next_due_mileage')
+      ? 'date_or_mileage'
+      : 'date',
+    next_due_at:fd.get('next_due_at')
+      ? new Date(fd.get('next_due_at')).toISOString()
+      : null,
+    next_due_mileage:fd.get('next_due_mileage')
+      ? Number(fd.get('next_due_mileage'))
+      : null,
+    interval_months:fd.get('interval_months')
+      ? Number(fd.get('interval_months'))
+      : null,
+    updated_by:u
+  };
+
+  if(editorMode==='editPlan'){
+    res=await supabase
+      .from('maintenance_plans')
+      .update(row)
+      .eq('id',editingId);
+  }else{
+    res=await supabase
+      .from('maintenance_plans')
+      .insert({
+        ...row,
+        created_by:u
+      });
+  }
+}
  if(res?.error)throw res.error;toast('Enregistré');await loadData();
 }
 async function completeTask(id){const {error}=await supabase.from('tasks').update({status:'completed',completed_at:new Date().toISOString(),completed_by:state.user.id,updated_by:state.user.id,next_reminder_at:null}).eq('id',id);if(error)toast(error.message);else{toast('Tâche terminée');await loadData()}}
 async function trashTask(id){if(!confirm('Supprimer cette tâche et arrêter ses futurs rappels ?'))return;const {error}=await supabase.from('tasks').update({deleted_at:new Date().toISOString(),deleted_by:state.user.id,next_reminder_at:null,updated_by:state.user.id}).eq('id',id);if(error)toast(error.message);else await loadData()}
 async function restoreTask(id){const {error}=await supabase.from('tasks').update({deleted_at:null,deleted_by:null,updated_by:state.user.id}).eq('id',id);if(error)toast(error.message);else await loadData()}
-async function completePlan(id){const p=state.plans.find(x=>x.id===id);if(!p)return;const mileage=prompt('Kilométrage lors de l’entretien (laisser vide si non applicable)');const {error}=await supabase.from('maintenance_records').insert({household_id:state.household.id,asset_id:p.asset_id,maintenance_plan_id:p.id,mileage:mileage?Number(mileage):null,performed_by:state.user.id,created_by:state.user.id});if(error){toast(error.message);return}let next=null;if(p.interval_months){next=new Date();next.setMonth(next.getMonth()+p.interval_months)}await supabase.from('maintenance_plans').update({next_due_at:next?.toISOString()||p.next_due_at,next_due_mileage:mileage&&p.interval_mileage?Number(mileage)+p.interval_mileage:p.next_due_mileage,updated_by:state.user.id}).eq('id',id);toast('Entretien enregistré');await loadData()}
+async function completePlan(id){
+  const p=state.plans.find(x=>x.id===id);
+
+  if(!p){
+    toast('Entretien introuvable');
+    return;
+  }
+
+  const performedAt=new Date();
+
+  let mileage=null;
+
+  if(
+    p.schedule_type==='mileage'
+    || p.schedule_type==='date_or_mileage'
+    || p.next_due_mileage!==null
+  ){
+    const entered=prompt(
+      'Kilométrage lors de l’entretien '
+      +'(laisser vide si non applicable)'
+    );
+
+    if(entered!==null && entered.trim()!==''){
+      mileage=Number(entered);
+
+      if(!Number.isFinite(mileage)||mileage<0){
+        toast('Le kilométrage saisi est incorrect');
+        return;
+      }
+    }
+  }
+
+  const recordResult=await supabase
+    .from('maintenance_records')
+    .insert({
+      household_id:state.household.id,
+      asset_id:p.asset_id,
+      maintenance_plan_id:p.id,
+      performed_at:performedAt.toISOString(),
+      mileage:mileage,
+      performed_by:state.user.id,
+      created_by:state.user.id
+    });
+
+  if(recordResult.error){
+    toast(recordResult.error.message);
+    return;
+  }
+
+  let nextDueAt=null;
+
+  if(p.interval_months){
+    nextDueAt=new Date(performedAt);
+
+    const originalDay=nextDueAt.getDate();
+
+    nextDueAt.setDate(1);
+    nextDueAt.setMonth(
+      nextDueAt.getMonth()+Number(p.interval_months)
+    );
+
+    const lastDayOfTargetMonth=new Date(
+      nextDueAt.getFullYear(),
+      nextDueAt.getMonth()+1,
+      0
+    ).getDate();
+
+    nextDueAt.setDate(
+      Math.min(originalDay,lastDayOfTargetMonth)
+    );
+  }
+
+  let nextDueMileage=p.next_due_mileage;
+
+  if(mileage!==null && p.interval_mileage){
+    nextDueMileage=
+      mileage+Number(p.interval_mileage);
+  }
+
+  const updateResult=await supabase
+    .from('maintenance_plans')
+    .update({
+      next_due_at:nextDueAt
+        ? nextDueAt.toISOString()
+        : null,
+      next_due_mileage:nextDueMileage,
+      next_reminder_at:null,
+      updated_by:state.user.id
+    })
+    .eq('id',id);
+
+  if(updateResult.error){
+    toast(
+      'Intervention enregistrée, mais la prochaine échéance '
+      +'n’a pas été recalculée : '
+      +updateResult.error.message
+    );
+    await loadData();
+    return;
+  }
+
+  toast(
+    nextDueAt
+      ? 'Entretien enregistré et prochaine date recalculée'
+      : 'Entretien enregistré. Définis une nouvelle échéance.'
+  );
+
+  await loadData();
+}
 
 function bindUI(){
  $('#tab-login').onclick=()=>setAuthMode(false);$('#tab-signup').onclick=()=>setAuthMode(true);
@@ -121,7 +303,7 @@ $$('[data-close-editor]').forEach(button=>{
   });
 });
  $('#settings-btn').onclick=()=>$('#settings-dialog').showModal();$('[data-close-settings]').onclick=()=>$('#settings-dialog').close();$('#signout-btn').onclick=async()=>{await supabase.auth.signOut();location.reload()};
- document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.complete)completeTask(b.dataset.complete);if(b.dataset.editTask)openEditor('task',b.dataset.editTask);if(b.dataset.trashTask)trashTask(b.dataset.trashTask);if(b.dataset.restoreTask)restoreTask(b.dataset.restoreTask);if(b.dataset.addPlan)openEditor('plan',b.dataset.addPlan);if(b.dataset.donePlan)completePlan(b.dataset.donePlan);if(b.dataset.go)showScreen(b.dataset.go);if(b.dataset.taskFilter){state.taskFilter=b.dataset.taskFilter;$$('[data-task-filter]').forEach(x=>x.classList.toggle('active',x===b));renderTasks()}if(b.dataset.assetFilter){state.assetFilter=b.dataset.assetFilter;$$('[data-asset-filter]').forEach(x=>x.classList.toggle('active',x===b));renderAssets()}if(b.dataset.homeFilter){showScreen('agenda')}});
+ document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.complete)completeTask(b.dataset.complete);if(b.dataset.editTask)openEditor('task',b.dataset.editTask);if(b.dataset.trashTask)trashTask(b.dataset.trashTask);if(b.dataset.restoreTask)restoreTask(b.dataset.restoreTask);if(b.dataset.addPlan)openEditor('plan',b.dataset.addPlan);if(b.dataset.editPlan)openEditor('editPlan',b.dataset.editPlan);if(b.dataset.donePlan)completePlan(b.dataset.donePlan);if(b.dataset.go)showScreen(b.dataset.go);if(b.dataset.taskFilter){state.taskFilter=b.dataset.taskFilter;$$('[data-task-filter]').forEach(x=>x.classList.toggle('active',x===b));renderTasks()}if(b.dataset.assetFilter){state.assetFilter=b.dataset.assetFilter;$$('[data-asset-filter]').forEach(x=>x.classList.toggle('active',x===b));renderAssets()}if(b.dataset.homeFilter){showScreen('agenda')}});
  window.addEventListener('online',()=>setSync('Synchronisé'));window.addEventListener('offline',()=>setSync('Hors connexion'));
 }
 function setAuthMode(v){signupMode=v;$('#tab-login').classList.toggle('active',!v);$('#tab-signup').classList.toggle('active',v);$('#auth-submit').textContent=v?'Créer mon compte':'Se connecter';$('#password-help').classList.toggle('hidden',!v);$('#auth-password').autocomplete=v?'new-password':'current-password'}
