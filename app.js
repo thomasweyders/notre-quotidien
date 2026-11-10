@@ -310,8 +310,212 @@ async function createInvitation(email) { if (!state.household) return toast("Auc
 async function acceptInvitation(code, displayName) { const normalizedCode = code.trim().toLowerCase(), normalizedName = displayName.trim(); if (!normalizedName) return toast("Saisis ton nom d’affichage"); if (!normalizedCode) return toast("Saisis le code d’invitation"); setSync("Vérification de l’invitation…"); const { data, error } = await supabase.rpc("accept_household_invitation", { requested_code: normalizedCode, requested_display_name: normalizedName }); if (error) { toast("Impossible de rejoindre le foyer : " + error.message); setSync("Erreur"); return; } toast(data?.[0]?.household_name ? "Foyer rejoint : " + data[0].household_name : "Foyer rejoint"); $("#invitation-code").value = ""; await loadContext(); showScreen("home"); setSync("Synchronisé"); }
 
 async function deleteEvent(id) { const event = state.events.find(item => item.id === id); if (!event || !confirm(`Supprimer l’événement « ${event.title} » ?`)) return; const { data, error } = await supabase.from("events").update({ deleted_at: new Date().toISOString(), deleted_by: state.user.id, updated_by: state.user.id }).eq("id", id).select("id").maybeSingle(); if (error || !data) return toast(error ? error.message : "Suppression refusée"); toast("Événement supprimé"); await loadData(); }
-async function trashTask(id) { if (!confirm("Supprimer cette tâche et arrêter ses futurs rappels ?")) return; const { error } = await supabase.from("tasks").update({ deleted_at: new Date().toISOString(), deleted_by: state.user.id, next_reminder_at: null, updated_by: state.user.id }).eq("id", id); if (error) toast(error.message); else await loadData(); }
-async function restoreTask(id) { const { error } = await supabase.from("tasks").update({ deleted_at: null, deleted_by: null, updated_by: state.user.id }).eq("id", id); if (error) toast(error.message); else await loadData(); }
+async function trashTask(id){
+  const task=state.tasks.find(
+    item=>item.id===id
+  );
+
+  if(!task){
+    toast('Tâche introuvable');
+    return;
+  }
+
+  if(!task.recurrence_enabled){
+    const confirmed=confirm(
+      `Supprimer la tâche « ${task.title} » ?`
+    );
+
+    if(!confirmed){
+      return;
+    }
+
+    setSync('Suppression…');
+
+    const {error}=await supabase
+      .from('tasks')
+      .update({
+        deleted_at:
+          new Date().toISOString(),
+
+        deleted_by:
+          state.user.id,
+
+        next_reminder_at:null,
+        snoozed_until:null,
+        notifications_enabled:false,
+        updated_by:state.user.id
+      })
+      .eq('id',id);
+
+    if(error){
+      console.error(
+        'Erreur suppression tâche',
+        error
+      );
+
+      toast(
+        'Impossible de supprimer la tâche : '
+        +error.message
+      );
+
+      setSync('Erreur');
+      return;
+    }
+
+    toast('Tâche placée dans la corbeille');
+
+    await loadData();
+
+    setSync('Synchronisé');
+    return;
+  }
+
+  const choice=prompt(
+    `Que veux-tu supprimer pour « ${task.title} » ?\n\n`
+    +'1 = Cette occurrence uniquement\n'
+    +'2 = Cette occurrence et toutes les suivantes\n'
+    +'0 = Annuler\n\n'
+    +'Saisis 1, 2 ou 0 :'
+  );
+
+  if(
+    choice===null
+    || choice.trim()===''
+    || choice.trim()==='0'
+  ){
+    return;
+  }
+
+  let scope;
+
+  if(choice.trim()==='1'){
+    scope='occurrence';
+  }else if(choice.trim()==='2'){
+    scope='future';
+  }else{
+    toast('Choisis 1, 2 ou 0');
+    return;
+  }
+
+  if(scope==='future'){
+    const confirmed=confirm(
+      'Confirmer l’arrêt de cette série ?\n\n'
+      +'Cette occurrence et toutes les suivantes '
+      +'seront placées dans la corbeille.\n\n'
+      +'Les occurrences déjà terminées resteront '
+      +'dans l’historique.'
+    );
+
+    if(!confirmed){
+      return;
+    }
+  }
+
+  setSync('Suppression…');
+
+  const {data,error}=await supabase.rpc(
+    'delete_recurring_task',
+    {
+      requested_task_id:id,
+      requested_scope:scope
+    }
+  );
+
+  if(error){
+    console.error(
+      'Erreur delete_recurring_task',
+      error
+    );
+
+    toast(
+      'Impossible de supprimer la tâche : '
+      +error.message
+    );
+
+    setSync('Erreur');
+    return;
+  }
+
+  const result=data?.[0];
+
+  await loadData();
+
+  setSync('Synchronisé');
+
+  if(scope==='occurrence'){
+    toast(
+      'Occurrence placée dans la corbeille'
+    );
+  }else{
+    toast(
+      result?.affected_count>1
+        ? `${result.affected_count} occurrences supprimées`
+        : 'Série récurrente arrêtée'
+    );
+  }
+}
+async function restoreTask(id){
+  const task=state.tasks.find(
+    item=>item.id===id
+  );
+
+  if(!task){
+    toast('Tâche introuvable');
+    return;
+  }
+
+  const confirmed=confirm(
+    task.recurrence_enabled
+      ? 'Restaurer uniquement cette occurrence ?'
+      : `Restaurer la tâche « ${task.title} » ?`
+  );
+
+  if(!confirmed){
+    return;
+  }
+
+  setSync('Restauration…');
+
+  const {data,error}=await supabase
+    .from('tasks')
+    .update({
+      deleted_at:null,
+      deleted_by:null,
+      notifications_enabled:false,
+      next_reminder_at:null,
+      updated_by:state.user.id
+    })
+    .eq('id',id)
+    .select('id')
+    .maybeSingle();
+
+  if(error){
+    console.error(
+      'Erreur restauration tâche',
+      error
+    );
+
+    toast(
+      'Impossible de restaurer la tâche : '
+      +error.message
+    );
+
+    setSync('Erreur');
+    return;
+  }
+
+  if(!data){
+    toast('Restauration refusée');
+    setSync('Synchronisé');
+    return;
+  }
+
+  toast('Occurrence restaurée');
+
+  await loadData();
+
+  setSync('Synchronisé');
+}
 async function deletePlan(id) { const plan = state.plans.find(item => item.id === id); if (!plan || !confirm(`Supprimer l’entretien planifié « ${plan.title} » ?`)) return; const { data, error } = await supabase.from("maintenance_plans").update({ deleted_at: new Date().toISOString(), deleted_by: state.user.id, active: false, notifications_enabled: false, next_reminder_at: null, updated_by: state.user.id }).eq("id", id).select("id").maybeSingle(); if (error || !data) return toast(error ? error.message : "Suppression refusée"); toast("Entretien planifié supprimé"); await loadData(); }
 
 async function completePlan(id) {
