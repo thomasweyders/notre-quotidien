@@ -19,10 +19,11 @@ function taskIcon(){return'✅'}
 function empty(text){return `<div class="empty">${esc(text)}</div>`}
 
 async function init(){
+ bindUI();
  if('serviceWorker'in navigator) navigator.serviceWorker.register('./service-worker.js').catch(console.warn);
  const {data:{session}}=await supabase.auth.getSession(); await handleSession(session);
  supabase.auth.onAuthStateChange((_e,s)=>setTimeout(()=>handleSession(s),0));
- bindUI();
+ 
 }
 async function handleSession(session){
  state.session=session;state.user=session?.user||null;
@@ -41,6 +42,11 @@ async function loadContext(){
  if(error){toast(error.message);setSync('Erreur');return}
  state.profile=profile;const membership=members?.[0];state.household=membership?.households||null;
  $('#onboarding').classList.toggle('hidden',!!state.household);$('#settings-household').textContent=state.household?.name||'Non configuré';
+ $('#household-invitation-section')
+  ?.classList.toggle(
+    'hidden',
+    !state.household
+  );
  if(!state.household){renderAll();setSync('Synchronisé');return}
  await loadData();subscribeRealtime();setSync('Synchronisé');
 }
@@ -63,6 +69,34 @@ function subscribeRealtime(){state.channels.forEach(c=>supabase.removeChannel(c)
  });
 }
 function setSync(v){$('#sync-state').textContent=v}
+
+function showCreateHousehold(){
+  $('#profile-household-form')
+    .classList.remove('hidden');
+
+  $('#join-household-form')
+    .classList.add('hidden');
+
+  $('#onboarding-create-tab')
+    .classList.add('active');
+
+  $('#onboarding-join-tab')
+    .classList.remove('active');
+}
+
+function showJoinHousehold(){
+  $('#profile-household-form')
+    .classList.add('hidden');
+
+  $('#join-household-form')
+    .classList.remove('hidden');
+
+  $('#onboarding-create-tab')
+    .classList.remove('active');
+
+  $('#onboarding-join-tab')
+    .classList.add('active');
+}
 
 function renderAll(){
  const name=state.profile?.display_name?.split(' ')[0]||'';$('#hello-label').textContent=`Bonjour${name?' '+name:''}`;$('#today-label').textContent=new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
@@ -277,6 +311,148 @@ if(editorMode==='plan'||editorMode==='editPlan'){
 }
  if(res?.error)throw res.error;toast('Enregistré');await loadData();
 }
+
+async function createInvitation(email){
+  if(!state.household){
+    toast('Aucun foyer actif');
+    return;
+  }
+
+  const normalizedEmail=email
+    .trim()
+    .toLowerCase();
+
+  if(!normalizedEmail){
+    toast('Saisis une adresse e-mail');
+    return;
+  }
+
+  setSync('Création de l’invitation…');
+
+  const {data,error}=await supabase.rpc(
+    'create_household_invitation',
+    {
+      requested_household_id:
+        state.household.id,
+
+      requested_email:
+        normalizedEmail
+    }
+  );
+
+  if(error){
+    console.error(
+      'Erreur création invitation',
+      error
+    );
+
+    toast(
+      'Impossible de créer l’invitation : '
+      +error.message
+    );
+
+    setSync('Erreur');
+    return;
+  }
+
+  const invitation=data?.[0];
+
+  if(!invitation?.invitation_code){
+    toast(
+      'Le code d’invitation n’a pas été généré'
+    );
+
+    setSync('Erreur');
+    return;
+  }
+
+  $('#generated-invitation-code')
+    .textContent=
+      invitation.invitation_code;
+
+  $('#invitation-expiration')
+    .textContent=
+      'Valable jusqu’au '
+      +dateText(invitation.expires_at);
+
+  $('#invitation-result')
+    .classList.remove('hidden');
+
+  $('#invited-email').value=
+    normalizedEmail;
+
+  setSync('Synchronisé');
+
+  toast('Code d’invitation créé');
+}
+
+async function acceptInvitation(
+  code,
+  displayName
+){
+  const normalizedCode=code
+    .trim()
+    .toLowerCase();
+
+  const normalizedName=
+    displayName.trim();
+
+  if(!normalizedName){
+    toast('Saisis ton nom d’affichage');
+    return;
+  }
+
+  if(!normalizedCode){
+    toast('Saisis le code d’invitation');
+    return;
+  }
+
+  setSync('Vérification de l’invitation…');
+
+  const {data,error}=await supabase.rpc(
+    'accept_household_invitation',
+    {
+      requested_code:
+        normalizedCode,
+
+      requested_display_name:
+        normalizedName
+    }
+  );
+
+  if(error){
+    console.error(
+      'Erreur acceptation invitation',
+      error
+    );
+
+    toast(
+      'Impossible de rejoindre le foyer : '
+      +error.message
+    );
+
+    setSync('Erreur');
+    return;
+  }
+
+  const joinedHousehold=data?.[0];
+
+  toast(
+    joinedHousehold?.household_name
+      ? 'Foyer rejoint : '
+        +joinedHousehold.household_name
+      : 'Foyer rejoint'
+  );
+
+  $('#invitation-code').value='';
+
+  await loadContext();
+
+  showScreen('home');
+
+  setSync('Synchronisé');
+}
+
 async function deleteEvent(id){
   const event=state.events.find(
     item=>item.id===id
@@ -508,6 +684,83 @@ async function completePlan(id){
 }
 
 function bindUI(){
+  $('#onboarding-create-tab')
+    ?.addEventListener(
+      'click',
+      showCreateHousehold
+    );
+
+  $('#onboarding-join-tab')
+    ?.addEventListener(
+      'click',
+      showJoinHousehold
+    );
+
+ $('#invitation-form')
+  ?.addEventListener(
+    'submit',
+    async event=>{
+      event.preventDefault();
+
+      const email=
+        $('#invited-email').value;
+
+      await createInvitation(email);
+    }
+  );
+
+$('#join-household-form')
+  ?.addEventListener(
+    'submit',
+    async event=>{
+      event.preventDefault();
+
+      const displayName=
+        $('#join-display-name').value;
+
+      const code=
+        $('#invitation-code').value;
+
+      await acceptInvitation(
+        code,
+        displayName
+      );
+    }
+  );
+ 
+$('#copy-invitation-code')
+  ?.addEventListener(
+    'click',
+    async ()=>{
+      const code=
+        $('#generated-invitation-code')
+          .textContent
+          .trim();
+
+      if(!code){
+        toast('Aucun code à copier');
+        return;
+      }
+
+      try{
+        await navigator.clipboard
+          .writeText(code);
+
+        toast('Code copié');
+      }catch(error){
+        console.error(
+          'Erreur copie code',
+          error
+        );
+
+        toast(
+          'Copie impossible. '
+          +'Sélectionne le code manuellement.'
+        );
+      }
+    }
+  );
+ 
  $('#tab-login').onclick=()=>setAuthMode(false);$('#tab-signup').onclick=()=>setAuthMode(true);
  $('#auth-form').addEventListener('submit',async e=>{e.preventDefault();const email=$('#auth-email').value.trim(),password=$('#auth-password').value;$('#auth-submit').disabled=true;const {error}=signupMode?await supabase.auth.signUp({email,password,options:{emailRedirectTo:location.href.split('#')[0]}}):await supabase.auth.signInWithPassword({email,password});$('#auth-submit').disabled=false;if(error)$('#auth-message').textContent=error.message;else $('#auth-message').textContent=signupMode?'Compte créé. Consulte ton e-mail pour confirmer l’inscription.':'Connexion réussie.'});
  $('#reset-password').onclick=async()=>{const email=$('#auth-email').value.trim();if(!email)return toast('Saisis d’abord ton adresse e-mail');const {error}=await supabase.auth.resetPasswordForEmail(email,{redirectTo:location.href.split('#')[0]});toast(error?error.message:'E-mail de réinitialisation envoyé')};
