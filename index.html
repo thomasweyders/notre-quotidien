@@ -39,15 +39,94 @@
     </header>
 
     <main class="content">
-      <section id="onboarding" class="panel hidden">
-        <h2>Bienvenue</h2>
-        <p>Crée ton foyer pour commencer à partager les tâches, événements et entretiens.</p>
-        <form id="profile-household-form">
-          <label>Ton prénom ou nom d’affichage<input id="display-name" maxlength="80" required></label>
-          <label>Nom du foyer<input id="household-name" maxlength="80" value="Notre foyer" required></label>
-          <button class="btn primary" type="submit">Créer mon foyer</button>
-        </form>
-      </section>
+    <section id="onboarding" class="panel hidden">
+  <h2>Bienvenue dans Notre quotidien</h2>
+
+  <p>
+    Crée un nouveau foyer ou rejoins un foyer existant
+    avec un code d’invitation.
+  </p>
+
+  <div class="segmented onboarding-tabs">
+    <button
+      id="onboarding-create-tab"
+      class="active"
+      type="button"
+    >
+      Créer un foyer
+    </button>
+
+    <button
+      id="onboarding-join-tab"
+      type="button"
+    >
+      Rejoindre un foyer
+    </button>
+  </div>
+
+  <form id="profile-household-form">
+    <label>
+      Ton prénom ou nom d’affichage
+
+      <input
+        id="display-name"
+        maxlength="80"
+        required
+      >
+    </label>
+
+    <label>
+      Nom du foyer
+
+      <input
+        id="household-name"
+        maxlength="80"
+        value="Notre foyer"
+        required
+      >
+    </label>
+
+    <button class="btn primary" type="submit">
+      Créer mon foyer
+    </button>
+  </form>
+
+  <form id="join-household-form" class="hidden">
+    <label>
+      Ton prénom ou nom d’affichage
+
+      <input
+        id="join-display-name"
+        maxlength="80"
+        autocomplete="name"
+        required
+      >
+    </label>
+
+    <label>
+      Code d’invitation
+
+      <input
+        id="invitation-code"
+        maxlength="64"
+        autocomplete="off"
+        autocapitalize="none"
+        spellcheck="false"
+        placeholder="Coller le code reçu"
+        required
+      >
+    </label>
+
+    <p class="help">
+      Le code doit avoir été créé pour l’adresse e-mail
+      utilisée avec ce compte.
+    </p>
+
+    <button class="btn primary" type="submit">
+      Rejoindre le foyer
+    </button>
+  </form>
+</section>  
 
       <section id="screen-home" class="screen">
         <div class="welcome"><div><p id="today-label"></p><h1 id="hello-label">Bonjour</h1></div><button id="quick-add" class="btn primary" type="button">＋ Ajouter</button></div>
@@ -100,6 +179,58 @@
       <div class="dialog-head"><h2>Paramètres</h2><button class="icon-btn" data-close-settings type="button">✕</button></div>
       <p id="account-email"></p>
       <p><strong>Foyer :</strong> <span id="settings-household">Non configuré</span></p>
+     <section id="household-invitation-section">
+  <hr>
+
+  <h3>Inviter un membre</h3>
+
+  <p class="help">
+    Le code sera associé à l’adresse e-mail indiquée
+    et restera valable pendant 48 heures.
+  </p>
+
+  <form id="invitation-form">
+    <label>
+      Adresse e-mail du membre
+
+      <input
+        id="invited-email"
+        type="email"
+        autocomplete="email"
+        required
+      >
+    </label>
+
+    <button class="btn primary full" type="submit">
+      Créer un code d’invitation
+    </button>
+  </form>
+
+  <div
+    id="invitation-result"
+    class="panel hidden"
+  >
+    <p>
+      <strong>Code d’invitation</strong>
+    </p>
+
+    <p
+      id="generated-invitation-code"
+      class="invitation-code"
+    ></p>
+
+    <p id="invitation-expiration" class="help"></p>
+
+    <button
+      id="copy-invitation-code"
+      class="btn secondary full"
+      type="button"
+    >
+      Copier le code
+    </button>
+  </div>
+</section>
+
       <button id="signout-btn" class="btn danger full" type="button">Se déconnecter</button>
     </div>
   </dialog>
